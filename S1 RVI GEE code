@@ -74,13 +74,13 @@ var parameter = {
 var s1_preprocess = wrapper.s1_preproc(parameter);
 
 // Extract the preprocessed images from the output
-var s1 = s1_preprocess[0];             // Extract the preprocessed Sentinel-1 collection
-s1_preprocess = s1_preprocess[1];      // Extract additional information (e.g., metadata)
+var s1 = s1_preprocess[0];             
+s1_preprocess = s1_preprocess[1];      
 
 // Print the preprocessed Sentinel-1 collection information
 print(s1_preprocess);
 
-// Calculate the Ratio Vegetation Index (RVI) for each image in the preprocessed collection
+// Calculate the Radar Vegetation Index (RVI) for each image in the preprocessed collection
 var RVI = s1_preprocess.map(function (image) {
   // Calculate RVI using the specified expression
   var rvi = image.expression('(4 * vh) / (vv + vh)', {
