@@ -1,0 +1,68 @@
+var collection= ee.ImageCollection('COPERNICUS/S1_GRD')
+  .filter(ee.Filter.eq('instrumentMode','IW'))
+  .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+  .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+  .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING')) 
+  .filter(ee.Filter.eq('resolution_meters',10))
+  .filter(ee.Filter.bounds(table))
+  .filter(ee.Filter.date('2019-01-01', '2021-12-31'))
+  
+  
+  
+//#################################
+// Speckle Filtering Package
+//################################
+
+var wrapper = require('users/adugnagirma/gee_s1_ard:wrapper');
+var helper = require('users/adugnagirma/gee_s1_ard:utilities');
+
+//---------------------------------------------------------------------------//
+// DEFINE PARAMETERS
+//---------------------------------------------------------------------------//
+
+var parameter = {//1. Data Selection
+              START_DATE: "2019-01-01",
+              STOP_DATE: "2021-12-31",
+              POLARIZATION:'VVVH',
+              ORBIT : 'DESCENDING',
+              GEOMETRY: table, //uncomment if interactively selecting a region of interest
+              // GEOMETRY: ee.Geometry.Polygon([[[104.80, 11.61],[104.80, 11.36],[105.16, 11.36],[105.16, 11.61]]], null, false), //Uncomment if providing coordinates
+              //GEOMETRY: ee.Geometry.Polygon([[[112.05, -0.25],[112.05, -0.45],[112.25, -0.45],[112.25, -0.25]]], null, false),
+              //2. Additional Border noise correction
+              APPLY_ADDITIONAL_BORDER_NOISE_CORRECTION: true,
+              //3.Speckle filter
+              APPLY_SPECKLE_FILTERING: true,
+              SPECKLE_FILTER_FRAMEWORK: 'MONO',
+              SPECKLE_FILTER: 'LEE SIGMA',
+              SPECKLE_FILTER_KERNEL_SIZE: 3,
+              SPECKLE_FILTER_NR_OF_IMAGES: 42,
+              //4. Radiometric terrain normalization
+              APPLY_TERRAIN_FLATTENING: true,
+              DEM: ee.Image('USGS/SRTMGL1_003'),
+              TERRAIN_FLATTENING_MODEL: 'VOLUME',
+              TERRAIN_FLATTENING_ADDITIONAL_LAYOVER_SHADOW_BUFFER: 0,
+              //5. Output
+              FORMAT : 'LINEAR',
+              CLIP_TO_ROI: true,
+              SAVE_ASSETS: false
+}
+
+//Preprocess the S1 collection
+var s1_preprocces = wrapper.s1_preproc(parameter);
+
+var s1 = s1_preprocces[0]
+s1_preprocces = s1_preprocces[1]    
+
+var RVI = (s1_preprocces).map(function (image){
+
+  var rvi = (image).expression('(4*vh/(vv+vh))',
+    {'vh': image.select('VH'),
+    'vv': image.select('VV')
+    }
+
+    );
+
+    return rvi.copyProperties(image, ['system:time_start']);
+  });
+
+print(RVI) 
