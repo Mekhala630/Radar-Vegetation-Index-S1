@@ -1,68 +1,118 @@
-var collection= ee.ImageCollection('COPERNICUS/S1_GRD')
-  .filter(ee.Filter.eq('instrumentMode','IW'))
+// Center the map view on the specified table geometry with a zoom level of 10
+Map.centerObject(table,10)
+
+// Add the table geometry as a layer to the map
+Map.addLayer(table)
+
+
+// Define an ImageCollection containing Sentinel-1 GRD (Ground Range Detected) data
+var collection = ee.ImageCollection('COPERNICUS/S1_GRD')
+
+  // Filter by Instrument Mode to include only Interferometric Wide (IW) mode
+  .filter(ee.Filter.eq('instrumentMode', 'IW'))
+
+  // Filter by transmitter-receiver polarizations to include only VH and VV polarizations
   .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
   .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
-  .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING')) 
-  .filter(ee.Filter.eq('resolution_meters',10))
-  .filter(ee.Filter.bounds(table))
-  .filter(ee.Filter.date('2019-01-01', '2021-12-31'))
-  
-  
-  
-//#################################
-// Speckle Filtering Package
-//################################
 
+  // Filter by orbit properties to include only descending orbit passes
+  .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
+
+  // Filter by resolution to include only images with a resolution of 10 meters
+  .filter(ee.Filter.eq('resolution_meters', 10))
+
+  // Filter by geographic bounds defined by the 'table' geometry
+  .filter(ee.Filter.bounds(table))
+
+  // Filter by date range from January 1, 2019, to December 31, 2019
+  .filter(ee.Filter.date('2019-01-01', '2019-12-31'));
+
+// Print the filtered collection to the console for inspection
+print(collection);
+  
+
+  
+// Import the wrapper module containing the speckle filtering package
 var wrapper = require('users/adugnagirma/gee_s1_ard:wrapper');
-var helper = require('users/adugnagirma/gee_s1_ard:utilities');
 
 //---------------------------------------------------------------------------//
 // DEFINE PARAMETERS
 //---------------------------------------------------------------------------//
 
-var parameter = {//1. Data Selection
-              START_DATE: "2019-01-01",
-              STOP_DATE: "2021-12-31",
-              POLARIZATION:'VVVH',
-              ORBIT : 'DESCENDING',
-              GEOMETRY: table, //uncomment if interactively selecting a region of interest
-              // GEOMETRY: ee.Geometry.Polygon([[[104.80, 11.61],[104.80, 11.36],[105.16, 11.36],[105.16, 11.61]]], null, false), //Uncomment if providing coordinates
-              //GEOMETRY: ee.Geometry.Polygon([[[112.05, -0.25],[112.05, -0.45],[112.25, -0.45],[112.25, -0.25]]], null, false),
-              //2. Additional Border noise correction
-              APPLY_ADDITIONAL_BORDER_NOISE_CORRECTION: true,
-              //3.Speckle filter
-              APPLY_SPECKLE_FILTERING: true,
-              SPECKLE_FILTER_FRAMEWORK: 'MONO',
-              SPECKLE_FILTER: 'LEE SIGMA',
-              SPECKLE_FILTER_KERNEL_SIZE: 3,
-              SPECKLE_FILTER_NR_OF_IMAGES: 42,
-              //4. Radiometric terrain normalization
-              APPLY_TERRAIN_FLATTENING: true,
-              DEM: ee.Image('USGS/SRTMGL1_003'),
-              TERRAIN_FLATTENING_MODEL: 'VOLUME',
-              TERRAIN_FLATTENING_ADDITIONAL_LAYOVER_SHADOW_BUFFER: 0,
-              //5. Output
-              FORMAT : 'LINEAR',
-              CLIP_TO_ROI: true,
-              SAVE_ASSETS: false
+// Define parameters for Sentinel-1 data preprocessing
+var parameter = {
+  // 1. Data Selection
+  START_DATE: "2019-01-01",                            // Start date of data selection
+  STOP_DATE: "2019-12-31",                             // End date of data selection
+  POLARIZATION: 'VVVH',                                // Polarization channels to include
+  ORBIT: 'DESCENDING',                                 // Orbit direction (ascending or descending)
+  GEOMETRY: table,                                     // AOI (Area of Interest) geometry
+  
+  // 2. Additional Border noise correction
+  APPLY_ADDITIONAL_BORDER_NOISE_CORRECTION: true,      // Apply additional border noise correction
+  
+  // 3. Speckle filter
+  APPLY_SPECKLE_FILTERING: true,                       // Apply speckle filtering
+  SPECKLE_FILTER_FRAMEWORK: 'MONO',                    // Speckle filter framework (e.g., MONO, MULTI)
+  SPECKLE_FILTER: 'LEE SIGMA',                         // Speckle filter type (e.g., LEE, GAMMA, FROST)
+  SPECKLE_FILTER_KERNEL_SIZE: 3,                      // Size of the speckle filter kernel
+  SPECKLE_FILTER_NR_OF_IMAGES: 200,                   // Number of images used in multi-temporal filtering
+  
+  // 4. Radiometric terrain normalization
+  APPLY_TERRAIN_FLATTENING: true,                      // Apply radiometric terrain normalization
+  DEM: ee.Image('USGS/SRTMGL1_003'),                   // Digital Elevation Model for terrain flattening
+  TERRAIN_FLATTENING_MODEL: 'VOLUME',                  // Terrain flattening model (e.g., VOLUME, ELLIPSOID)
+  TERRAIN_FLATTENING_ADDITIONAL_LAYOVER_SHADOW_BUFFER: 0, // Additional buffer for layover and shadow (in meters)
+  
+  // 5. Output
+  FORMAT: 'LINEAR',                                    // Output format of processed data
+  CLIP_TO_ROI: true,                                   // Clip output to the defined AOI
+  SAVE_ASSETS: false                                   // Save processed data as assets in GEE
 }
 
-//Preprocess the S1 collection
-var s1_preprocces = wrapper.s1_preproc(parameter);
+// Preprocess the Sentinel-1 collection using the defined parameters
+var s1_preprocess = wrapper.s1_preproc(parameter);
 
-var s1 = s1_preprocces[0]
-s1_preprocces = s1_preprocces[1]    
+// Extract the preprocessed images from the output
+var s1 = s1_preprocess[0];             // Extract the preprocessed Sentinel-1 collection
+s1_preprocess = s1_preprocess[1];      // Extract additional information (e.g., metadata)
 
-var RVI = (s1_preprocces).map(function (image){
+// Print the preprocessed Sentinel-1 collection information
+print(s1_preprocess);
 
-  var rvi = (image).expression('(4*vh/(vv+vh))',
-    {'vh': image.select('VH'),
-    'vv': image.select('VV')
-    }
-
-    );
-
-    return rvi.copyProperties(image, ['system:time_start']);
+// Calculate the Ratio Vegetation Index (RVI) for each image in the preprocessed collection
+var RVI = s1_preprocess.map(function (image) {
+  // Calculate RVI using the specified expression
+  var rvi = image.expression('(4 * vh) / (vv + vh)', {
+    'vh': image.select('VH'),   // Select the VH (Vertical-Horizontal) polarization band
+    'vv': image.select('VV')    // Select the VV (Vertical-Vertical) polarization band
   });
+  
+  // Copy metadata (system:time_start) from the original image to the RVI image
+  return rvi.copyProperties(image, ['system:time_start']);
+});
 
-print(RVI) 
+// Print the RVI collection
+print(RVI, "RVI");
+
+
+
+// Generate a time series chart by region
+var chart = ui.Chart.image.seriesByRegion({
+  imageCollection: RVI,                             // Use the RVI collection as input
+  regions: table,                                   // Define regions using the 'table' geometry
+  reducer: ee.Reducer.mean(),                       // Use mean reducer to aggregate pixel values
+  scale: 10,                                        // Scale of the analysis (in meters)
+  seriesProperty: "Name"                            // Property in the 'table' for naming series
+}).setOptions({
+  lineWidth: 1,                                     // Set the line width for the chart
+  title: 'RVI Time Series',                          // Set the chart title
+  interpolateNulls: true,                           // Interpolate null values in the chart
+  vAxis: { title: 'RVI' },                          // Set the title for the vertical axis
+  hAxis: { title: '', format: 'dd-MMM-YYYY' }       // Set the title and format for the horizontal axis
+});
+
+// Print the generated chart
+print(chart);
+
+
